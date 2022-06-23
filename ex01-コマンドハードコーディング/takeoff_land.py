@@ -21,7 +21,7 @@ print('takeoff')
 time.sleep(3)
 
 # 前進
-socket.sendto('forward 100'.encode('utf-8'), tello_address)
+socket.sendto('forward 50'.encode('utf-8'), tello_address)
 print('forward')
 time.sleep(3)
 
