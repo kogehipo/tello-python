@@ -1,0 +1,56 @@
+
+id: 0
+command: command
+response: None
+start time: 2022-06-17 13:31:54.624335
+end_time: None
+duration: None
+
+id: 1
+command: takeoff
+response: None
+start time: 2022-06-17 13:32:09.624486
+end_time: None
+duration: None
+
+id: 2
+command: left 50
+response: None
+start time: 2022-06-17 13:32:26.629806
+end_time: None
+duration: None
+
+id: 3
+command: forward 50
+response: None
+start time: 2022-06-17 13:32:43.635144
+end_time: None
+duration: None
+
+id: 4
+command: right 50
+response: None
+start time: 2022-06-17 13:33:00.640439
+end_time: None
+duration: None
+
+id: 5
+command: back 50
+response: None
+start time: 2022-06-17 13:33:17.645882
+end_time: None
+duration: None
+
+id: 6
+command: flip r
+response: None
+start time: 2022-06-17 13:33:34.651320
+end_time: None
+duration: None
+
+id: 7
+command: land
+response: None
+start time: 2022-06-17 13:33:51.656777
+end_time: None
+duration: None

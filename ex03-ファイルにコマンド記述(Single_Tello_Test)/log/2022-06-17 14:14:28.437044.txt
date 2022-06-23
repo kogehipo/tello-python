@@ -1,0 +1,56 @@
+
+id: 0
+command: command
+response: b'ok'
+start time: 2022-06-17 14:14:28.437544
+end_time: 2022-06-17 14:14:28.474936
+duration: 0.037392
+
+id: 1
+command: takeoff
+response: b'error'
+start time: 2022-06-17 14:14:28.475157
+end_time: 2022-06-17 14:14:28.531009
+duration: 0.055852
+
+id: 2
+command: left 50
+response: b'error Auto land'
+start time: 2022-06-17 14:14:30.536222
+end_time: 2022-06-17 14:14:30.618491
+duration: 0.082269
+
+id: 3
+command: forward 50
+response: b'error Auto land'
+start time: 2022-06-17 14:14:32.623707
+end_time: 2022-06-17 14:14:32.711751
+duration: 0.088044
+
+id: 4
+command: right 50
+response: b'error Auto land'
+start time: 2022-06-17 14:14:34.716915
+end_time: 2022-06-17 14:14:34.803716
+duration: 0.086801
+
+id: 5
+command: back 50
+response: b'error Auto land'
+start time: 2022-06-17 14:14:36.808855
+end_time: 2022-06-17 14:14:36.892492
+duration: 0.083637
+
+id: 6
+command: flip r
+response: b'ok'
+start time: 2022-06-17 14:14:38.897638
+end_time: 2022-06-17 14:14:40.450541
+duration: 1.552903
+
+id: 7
+command: land
+response: b'ok'
+start time: 2022-06-17 14:14:40.929498
+end_time: 2022-06-17 14:14:43.629563
+duration: 2.700065
