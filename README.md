@@ -1,8 +1,8 @@
-## 2022年度RDクラブ・ECRチーム
+# 2022年度RDクラブ・ECRチーム
 
 チームによるTELLOテスト用リポジトリです。使用しているのはTELLO-EDUです。
 
-## 環境設定
+# 環境設定
 
 このリポジトリの内容を動作させるための手順です。
 
@@ -17,7 +17,7 @@
 
 3. GitHubからリポジトリをクローンします。
 ```
-    $ git clone https://github.com/kogehipo/tello
+    $ git clone https://github.com/kogehipo/tello-python
 ```
 4. 仮想環境に入ります。（ディレクトリ構成によっては(3)、(4)の順番は変わります）
 ```
@@ -26,12 +26,12 @@
 ```
 5. クローンしたディレクトリに移動して、pip3で必要なライブラリをインストールします。
 ```
-    (env) $ cd tello
+    (env) $ cd tello-python
     (env) $ pip3 install -r requirement.txt
 ```
 6. "exXX"で始まるディレクトリがそれぞれサンプルです。
 
-## ex01-コマンドハードコーディング
+# ex01-コマンドハードコーディング
 
 参考にしたページ
 
@@ -40,7 +40,7 @@ https://deviceplus.jp/hi-tech/drone-on-auto-pilot-with-python-03/
 TELLOのコマンドを直接送信しています。
 コマンドが動作しないことが頻繁にありますが原因不明です。
 
-## ex02-状態モニター
+# ex02-状態モニター
 
 参考にしたページ
 
@@ -49,8 +49,9 @@ https://github.com/dji-sdk/Tello-Python
 
 飛びません。TELLOの内部のセンサー等の情報を表示するものです。
 姿勢など検知していることがわかります。
+ただし、Windows/WSLでは動作できていません。
 
-## ex03-ファイルにコマンド記述(Single_Tello_Test)
+# ex03-ファイルにコマンド記述(Single_Tello_Test)
 
 参考にしたページ
 
@@ -63,7 +64,7 @@ https://github.com/dji-sdk/Tello-Python
 ```
 やはりコマンドが動作しないことが頻繁にあります。コマンドのレスポンスを待っている間にタイム・アウトしてしまいます。下位にlogという名前のディレクトリを作っておくとログが保存されます。
 
-## ex04-コマンド入力で制御
+# ex04-コマンド入力で制御
 
 参考にしたページ
 
@@ -95,7 +96,23 @@ TELLOに送るコマンドを随時キーボードからタイプする。最初
 ```
 ex01、ex03と同じはずだが、これはうまく行く。何が違うかは不明。
 
-## メモ
+# ex05-djitellopy使用の単純サンプル(simple.py)
+
+https://github.com/damiafuentes/DJITelloPy  （インターフェース４月号の推薦）
+
+この中のsimple.pyそのもの。エラーチェックを行っているらしく、安定動作する。
+
+# ex06-opencv-template
+
+DJITelloPyから、manual-control-opencv
+```
+自動テイクオフし、ESCで着地する。OpenCVによる画像モニターあり。
+W,A,S,D - 前後左右に移動
+E,Q - 回転
+R,F - 上昇,下降
+```
+
+# メモ
 
 役に立ちそうな記事をメモっておきます。
 
