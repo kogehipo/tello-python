@@ -27,7 +27,9 @@ def main():
                                     # 応答が来ないときのリトライは1（デフォルトは3）
     tello.RESPONSE_TIMEOUT = 0.01   # コマンド応答のタイムアウトは0.01（デフォルトは7）
 
-    tello.connect()     # Telloへ接続
+    # Windows/WSL対応のためFalseを追加。（ex05を参照）
+    #tello.connect()     # Telloへ接続
+    tello.connect(False)     # Telloへ接続
 
     # 画像転送を行う
     tello.streamoff()   # いったん明示的にオフして、

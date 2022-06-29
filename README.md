@@ -111,11 +111,11 @@ W,A,S,D - 前後左右に移動
 E,Q - 回転
 R,F - 上昇,下降
 ```
-ドローンアプリを開発するベースとして最適ですが、Windows/WSL2では動作できていません。おそらくDJITelloPyの動作環境の問題。
+ドローンアプリを開発するベースとして最適ですが、Windows/WSL2ではOpenCVの窓が表示されず、動作できていません。WSLでGUIを使うための準備は行っても、まだ足りないものがあるようです。
 
 # ex07-skeleton
 
-ex-06の問題に対して、Windowsではこちらのほうが良いかもしれない。
+ex-06の問題に対して、Windowsではこちらのほうが良いかもしれない。（未テスト）
 
 https://qiita.com/hsgucci/items/4bf1ef324837665f6b60
 
@@ -125,6 +125,7 @@ https://qiita.com/hsgucci/items/d1df1122853ee6dd4bf7
 https://qiita.com/hsgucci/items/cbcb8da6941a9981c11e
 https://github.com/f41ardu/Tello-Python/
 
+さらにビルド用のツールのインストールが必要かも。
 sudo apt install cmake
 
 # メモ
