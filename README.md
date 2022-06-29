@@ -100,7 +100,7 @@ ex01、ex03と同じはずだが、これはうまく行く。何が違うかは
 
 https://github.com/damiafuentes/DJITelloPy  （インターフェース４月号の推薦）
 
-この中のsimple.pyそのもの。エラーチェックを行っているらしく、安定動作する。ただし、Windows/WSL2では動作できていません。
+この中のsimple.pyそのもの。エラーチェックを行っているらしく、安定動作する。Windows/WSL2での動作に問題があり少し改変してある。
 
 # ex06-opencv-template
 
@@ -125,6 +125,7 @@ https://qiita.com/hsgucci/items/d1df1122853ee6dd4bf7
 https://qiita.com/hsgucci/items/cbcb8da6941a9981c11e
 https://github.com/f41ardu/Tello-Python/
 
+sudo apt install cmake
 
 # メモ
 
