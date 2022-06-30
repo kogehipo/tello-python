@@ -113,6 +113,15 @@ R,F - 上昇,下降
 ```
 ドローンアプリを開発するベースとして最適ですが、Windows/WSL2ではOpenCVの窓が表示されず、動作できていません。WSLでGUIを使うための準備は行っても、まだ足りないものがあるようです。
 
+https://github.com/damiafuentes/DJITelloPy/issues/90
+
+https://github.com/damiafuentes/DJITelloPy/issues/153
+
+
+sudo apt install libopencv-dev
+pip3 install opencv-contrib-python
+
+
 # ex07-skeleton
 
 ex-06の問題に対して、Windowsではこちらのほうが良いかもしれない。（未テスト）
