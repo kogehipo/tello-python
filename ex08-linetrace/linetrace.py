@@ -96,18 +96,12 @@ def main():
             hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)  # BGR画像 -> HSV画像
 
             # トラックバーの値を取る
-            #h_min = cv2.getTrackbarPos("H_min", "OpenCV Window")
-            #h_max = cv2.getTrackbarPos("H_max", "OpenCV Window")
-            #s_min = cv2.getTrackbarPos("S_min", "OpenCV Window")
-            #s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
-            #v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
-            #v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
-            h_min = 50
-            h_max = 70
-            s_min = 64
-            s_max = 192
-            v_min = 80
-            v_max = 128
+            h_min = cv2.getTrackbarPos("H_min", "OpenCV Window")
+            h_max = cv2.getTrackbarPos("H_max", "OpenCV Window")
+            s_min = cv2.getTrackbarPos("S_min", "OpenCV Window")
+            s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
+            v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
+            v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
             
             # inRange関数で範囲指定２値化
             bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max)) # HSV画像なのでタプルもHSV並び

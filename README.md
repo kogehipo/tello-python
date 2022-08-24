@@ -122,20 +122,15 @@ sudo apt install libopencv-dev
 pip3 install opencv-contrib-python
 
 
-# ex07-skeleton
+# ex07-colortrace
 
-ex-06の問題に対して、Windowsではこちらのほうが良いかもしれない。（未テスト）
+色を元に物体認識して追跡します。
 
-https://qiita.com/hsgucci/items/4bf1ef324837665f6b60
 
-これを動作させるためには下記のページの情報も必要になる。
+# ex08-colortrace
 
-https://qiita.com/hsgucci/items/d1df1122853ee6dd4bf7
-https://qiita.com/hsgucci/items/cbcb8da6941a9981c11e
-https://github.com/f41ardu/Tello-Python/
+ライントレースです。
 
-さらにビルド用のツールのインストールが必要かも。
-sudo apt install cmake
 
 # メモ
 
