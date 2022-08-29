@@ -103,6 +103,22 @@ def main():
             v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
             v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
             
+            if auto_mode == 2:
+                # 黄
+                #h_min = 10
+                #h_max = 60
+                # 緑
+                h_min = 30
+                h_max = 90
+                # 青
+                #h_min = 90
+                #h_max = 150
+
+                s_min = 64
+                s_max = 255
+                v_min = 0
+                v_max = 255
+
             # inRange関数で範囲指定２値化
             bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max)) # HSV画像なのでタプルもHSV並び
 
@@ -139,7 +155,7 @@ def main():
                 cv2.putText(result_image, "%d,%d"%(mx,my), (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
                 cv2.putText(result_image, "%d"%(s), (x, y+h+30), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
 
-                if auto_mode == 1:
+                if auto_mode == 1 or auto_mode == 2:
                     a = b = c = d = 0
 
                     # 制御式(ゲインは低めの0.3)
@@ -211,6 +227,8 @@ def main():
                     time.sleep(0.5)     # 映像が切り替わるまで少し待つ
             elif key == ord('1'):
                 auto_mode = 1                    # 追跡モードON
+            elif key == ord('2'):
+                auto_mode = 2                    # 追跡モードON
             elif key == ord('0'):
                 tello.send_rc_control( 0, 0, 0, 0 )
                 auto_mode = 0                    # 追跡モードOFF

@@ -92,7 +92,7 @@ def main():
                 small_image = cv2.rotate(small_image, cv2.ROTATE_90_CLOCKWISE)      # 90度回転して、画像の上を前方にする
 
             # (3) ここから画像処理
-            bgr_image = small_image
+            bgr_image = small_image[250:359,0:479]
             hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)  # BGR画像 -> HSV画像
 
             # トラックバーの値を取る
@@ -102,15 +102,30 @@ def main():
             s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
             v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
             v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
-            
+
+            if auto_mode == 2:
+                # 黄
+                #h_min = 10
+                #h_max = 60
+                # 緑
+                h_min = 30
+                h_max = 90
+                # 青
+                #h_min = 90
+                #h_max = 150
+
+                s_min = 64
+                s_max = 255
+                v_min = 0
+                v_max = 255
+
+
             # inRange関数で範囲指定２値化
             bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max)) # HSV画像なのでタプルもHSV並び
 
-            kernel = np.ones((15,15),np.uint8)
-            #15×15で膨張させる
+            kernel = np.ones((15,15), np.uint8)  #15×15で膨張させる
 
-            bin_image = cv2.dilate(bin_image,kernel,iterations =1)
-            #膨張して虎ロープをつなげる
+            bin_image = cv2.dilate(bin_image,kernel,iterations=1)  #膨張して虎ロープをつなげる
 
             # bitwise_andで元画像にマスクをかける -> マスクされた部分の色だけ残る
             result_image = cv2.bitwise_and(hsv_image, hsv_image, mask=bin_image)   # HSV画像 AND HSV画像 なので，自分自身とのANDは何も変化しない->マスクだけ効かせる
@@ -123,20 +138,44 @@ def main():
             stats = np.delete(stats, 0, 0)
             center = np.delete(center, 0, 0)
 
-            if auto_mode == 1:
+            if num_labels >= 1:
+                # 面積最大のインデックスを取得
+                max_index = np.argmax(stats[:,4])
+                #print max_index
+
+                # 面積最大のラベルのx,y,w,h,面積s,重心位置mx,myを得る
+                x = stats[max_index][0]
+                y = stats[max_index][1]
+                w = stats[max_index][2]
+                h = stats[max_index][3]
+                s = stats[max_index][4]
+                mx = int(center[max_index][0])
+                my = int(center[max_index][1])
+                #print("(x,y)=%d,%d (w,h)=%d,%d s=%d (mx,my)=%d,%d"%(x, y, w, h, s, mx, my) )
+
+                # ラベルを囲うバウンディングボックスを描画
+                cv2.rectangle(result_image, (x, y), (x+w, y+h), (255, 0, 255))
+
+                # 重心位置の座標と面積を表示
+                cv2.putText(result_image, "%d,%d"%(mx,my), (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
+                cv2.putText(result_image, "%d"%(s), (x, y+h+30), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
+
+
+            if auto_mode == 1 or auto_mode == 2:
                     a = b = c = d = 0
                     b=30
 
                     # 制御式(ゲインは低めの0.3)
-                    dx = 0.3 * (240 - mx)       # 画面中心との差分
+                    dx = 0.4 * (240 - mx)       # 画面中心との差分
 
                     # 旋回方向の不感帯を設定
-                    d = 0.0 if abs(dx) < 20.0 else dx   # ±20未満ならゼロにする
+                    d = 0.0 if abs(dx) < 10.0 else dx   # ±20未満ならゼロにする
 
-                    d = -d
                     # 旋回方向のソフトウェアリミッタ(±100を超えないように)
                     d =  100 if d >  100.0 else d
                     d = -100 if d < -100.0 else d
+
+                    d = -d  # 旋回方向が逆だったので符号を反転
 
                     print('dx=%f'%(dx) )
                     #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
@@ -196,6 +235,8 @@ def main():
                     time.sleep(0.5)     # 映像が切り替わるまで少し待つ
             elif key == ord('1'):
                 auto_mode = 1                    # 追跡モードON
+            elif key == ord('2'):
+                auto_mode = 2                    # 追跡モードON
             elif key == ord('0'):
                 tello.send_rc_control( 0, 0, 0, 0 )
                 auto_mode = 0                    # 追跡モードOFF
