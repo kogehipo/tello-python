@@ -68,6 +68,9 @@ def main():
     cv2.createTrackbar("V_max", "OpenCV Window", 255, 255, nothing)
     
     # 自動モードフラグ
+    # 0: 手動操縦
+    # 1: 対象の色をトラックバーで設定して追跡
+    # 2: 固定の色設定で追跡（Macbookでトラックバーが動作しないので）
     auto_mode = 0
 
     time.sleep(0.5)     # 通信安定するまで待つ
@@ -89,10 +92,10 @@ def main():
 
             # 下向きカメラは90°回転して画像の上を前方にする
             if camera_dir == Tello.CAMERA_DOWNWARD:
-                small_image = cv2.rotate(small_image, cv2.ROTATE_90_CLOCKWISE)      # 90度回転して、画像の上を前方にする
+                small_image = cv2.rotate(small_image, cv2.ROTATE_90_CLOCKWISE)
 
             # (3) ここから画像処理
-            bgr_image = small_image[250:359,0:479]
+            bgr_image = small_image[250:359,0:479]   # 注目する領域を切り取る
             hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)  # BGR画像 -> HSV画像
 
             # トラックバーの値を取る
@@ -103,6 +106,8 @@ def main():
             v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
             v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
 
+            # モード２の場合は固定の設定を使う。Macbookでトラックバーが動作しないため。
+            # また、Jetsonでは画面サイズが小さく操作できないため。
             if auto_mode == 2:
                 # 黄
                 #h_min = 10
@@ -119,16 +124,17 @@ def main():
                 v_min = 0
                 v_max = 255
 
+            # inRange関数で範囲を指定して、HSV画像を２値化。HSV画像なのでタプルもHSV並びで指定。
+            bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max))
 
-            # inRange関数で範囲指定２値化
-            bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max)) # HSV画像なのでタプルもHSV並び
+            # ２値画像を15×15に膨張させて虎ロープの画像をつなげる
+            # 虎ロープではない場合も有効と思われる。
+            kernel = np.ones((15,15), np.uint8)
+            bin_image = cv2.dilate(bin_image, kernel, iterations=1)
 
-            kernel = np.ones((15,15), np.uint8)  #15×15で膨張させる
-
-            bin_image = cv2.dilate(bin_image,kernel,iterations=1)  #膨張して虎ロープをつなげる
-
-            # bitwise_andで元画像にマスクをかける -> マスクされた部分の色だけ残る
-            result_image = cv2.bitwise_and(hsv_image, hsv_image, mask=bin_image)   # HSV画像 AND HSV画像 なので，自分自身とのANDは何も変化しない->マスクだけ効かせる
+            # 元のHSV画像に２値画像でマスクをかける -> マスクされた部分の色だけ残る
+            # （HSV画像 AND HSV画像 なので，自分自身とのANDは何も変化しない->マスクだけ効かせる）
+            result_image = cv2.bitwise_and(hsv_image, hsv_image, mask=bin_image)
 
             # 面積・重心計算付きのラベリング処理を行う
             num_labels, label_image, stats, center = cv2.connectedComponentsWithStats(bin_image)
@@ -141,7 +147,7 @@ def main():
             if num_labels >= 1:
                 # 面積最大のインデックスを取得
                 max_index = np.argmax(stats[:,4])
-                #print max_index
+                #print(max_index)
 
                 # 面積最大のラベルのx,y,w,h,面積s,重心位置mx,myを得る
                 x = stats[max_index][0]
@@ -160,16 +166,16 @@ def main():
                 cv2.putText(result_image, "%d,%d"%(mx,my), (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
                 cv2.putText(result_image, "%d"%(s), (x, y+h+30), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
 
-
-            if auto_mode == 1 or auto_mode == 2:
+                # 自動操縦のときは、ここで飛行方向を決める
+                if auto_mode == 1 or auto_mode == 2:
                     a = b = c = d = 0
-                    b=30
+                    b = 30  # 前方への進行速度
 
                     # 制御式(ゲインは低めの0.3)
-                    dx = 0.4 * (240 - mx)       # 画面中心との差分
+                    dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
 
-                    # 旋回方向の不感帯を設定
-                    d = 0.0 if abs(dx) < 10.0 else dx   # ±20未満ならゼロにする
+                    # 旋回方向の不感帯を設定（±20未満ならゼロにする）
+                    d = 0.0 if abs(dx) < 10.0 else dx
 
                     # 旋回方向のソフトウェアリミッタ(±100を超えないように)
                     d =  100 if d >  100.0 else d
@@ -179,11 +185,11 @@ def main():
 
                     print('dx=%f'%(dx) )
                     #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
+                    # 引数の意味： left-right velocity, forward-backward, up-down, yaw
                     tello.send_rc_control( int(a), int(b), int(c), int(d) )
 
-            # 画像を表示
+            # (4) ウィンドウに画像を表示
             #cv2.imshow("OpenCV Window", small_image)
-            # (4) ウィンドウに表示
             cv2.imshow('OpenCV Window', result_image)    # ウィンドウに表示するイメージを変えれば色々表示できる
             cv2.imshow('Binary Image', bin_image) 
 
@@ -233,13 +239,13 @@ def main():
                         tello.set_video_direction(Tello.CAMERA_FORWARD)
                         camera_dir = Tello.CAMERA_FORWARD      # フラグ変更
                     time.sleep(0.5)     # 映像が切り替わるまで少し待つ
-            elif key == ord('1'):
-                auto_mode = 1                    # 追跡モードON
-            elif key == ord('2'):
-                auto_mode = 2                    # 追跡モードON
-            elif key == ord('0'):
+            elif key == ord('1'):       # 追跡モードON（トラックバー使用する）
+                auto_mode = 1
+            elif key == ord('2'):       # 追跡モードON（トラックバー使用しない）
+                auto_mode = 2
+            elif key == ord('0'):       # 追跡モードOFF
                 tello.send_rc_control( 0, 0, 0, 0 )
-                auto_mode = 0                    # 追跡モードOFF
+                auto_mode = 0
 
             # (6) 10秒おきに'command'を送って、死活チェックを通す
             current_time = time.time()                          # 現在時刻を取得
@@ -248,7 +254,7 @@ def main():
                 pre_time = current_time                         # 前回時刻を更新
 
     # Ctrl+Cが押されたらループ離脱
-    except( KeyboardInterrupt, SystemExit):    # Ctrl+cが押されたらループ脱出
+    except( KeyboardInterrupt, SystemExit):
         print( "Ctrl+c を検知" )
 
     ###########
@@ -265,6 +271,7 @@ def main():
     del tello.background_frame_read                     # フレーム受信のインスタンスを削除    
     del tello                                           # telloインスタンスを削除
 
-# "python3 main_color_tracking.py"として実行された時だけ動く様にするおまじない処理
-if __name__ == "__main__":      # importされると__name_に"__main__"は入らないので，pyファイルが実行されたのかimportされたのかを判断できる．
+# "python3 XXXX.py"として実行された時だけ動く様にするおまじない処理
+# importされると__name_に"__main__"は入らないので，pyファイルが実行されたのかimportされたのかを判断できる．
+if __name__ == "__main__":
     main()    # メイン関数を実行
