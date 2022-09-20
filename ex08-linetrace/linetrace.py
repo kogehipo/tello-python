@@ -11,6 +11,9 @@
 # Use W, A, S, D for moving, E, Q for rotating and R, F for going up and down.
 # When starting the script the Tello will takeoff, pressing ESC makes it land
 #  and the script exit.
+#
+# 水平ライントレースに加えて、垂直ライントレースの機能を追加中。
+# auto_mode で自動モードを制御。
 
 from djitellopy import Tello    # DJITelloPyのTelloクラスをインポート
 import time                     # time.sleepを使いたいので
@@ -69,8 +72,9 @@ def main():
     
     # 自動モードフラグ
     # 0: 手動操縦
-    # 1: 対象の色をトラックバーで設定して追跡
-    # 2: 固定の色設定で追跡（Macbookでトラックバーが動作しないので）
+    # 1: 対象の色をトラックバーで設定して、水平ライントレース
+    # 2: 固定の色設定で水平ライントレース（Macbookでトラックバーが動作しないので）
+    # 3: 固定の色設定で垂直ライントレース
     auto_mode = 0
 
     time.sleep(0.5)     # 通信安定するまで待つ
@@ -95,20 +99,28 @@ def main():
                 small_image = cv2.rotate(small_image, cv2.ROTATE_90_CLOCKWISE)
 
             # (3) ここから画像処理
-            bgr_image = small_image[250:359,0:479]   # 注目する領域を切り取る
+            if auto_mode == 1 or auto_mode == 2:
+                # 水平ライントレースの場合は注目する領域（下半分）を切り取る
+                bgr_image = small_image[250:359,0:479]
+            else:
+                bgr_image = small_image
+
             hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)  # BGR画像 -> HSV画像
 
-            # トラックバーの値を取る
-            h_min = cv2.getTrackbarPos("H_min", "OpenCV Window")
-            h_max = cv2.getTrackbarPos("H_max", "OpenCV Window")
-            s_min = cv2.getTrackbarPos("S_min", "OpenCV Window")
-            s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
-            v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
-            v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
+            if auto_mode == 1:
+                # トラックバーを使う場合はその値を取得
+                h_min = cv2.getTrackbarPos("H_min", "OpenCV Window")
+                h_max = cv2.getTrackbarPos("H_max", "OpenCV Window")
+                s_min = cv2.getTrackbarPos("S_min", "OpenCV Window")
+                s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
+                v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
+                v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
 
-            # モード２の場合は固定の設定を使う。Macbookでトラックバーが動作しないため。
-            # また、Jetsonでは画面サイズが小さく操作できないため。
-            if auto_mode == 2:
+            else:
+                # モード２,3の場合は固定の設定を使う。Macbookでトラックバーが動作しないため。
+                # また、Jetsonでは画面サイズが小さく操作できないため。
+                '''
+                # ケーブルドラムの緑色
                 # 黄
                 #h_min = 10
                 #h_max = 60
@@ -118,11 +130,18 @@ def main():
                 # 青
                 #h_min = 90
                 #h_max = 150
-
                 s_min = 64
                 s_max = 255
                 v_min = 0
                 v_max = 255
+                '''
+                # 黒色の設定
+                h_min = 0
+                h_max = 179
+                s_min = 0
+                s_max = 255
+                v_min = 0
+                v_max = 60
 
             # inRange関数で範囲を指定して、HSV画像を２値化。HSV画像なのでタプルもHSV並びで指定。
             bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max))
@@ -188,6 +207,45 @@ def main():
                     # 引数の意味： left-right velocity, forward-backward, up-down, yaw
                     tello.send_rc_control( int(a), int(b), int(c), int(d) )
 
+                elif auto_mode == 3:
+                    a = b = c = d = 0
+
+                    # up down制御式(ゲインは低めの0.3)
+                    cx = 0.3 * (180 - my)       # 画面tate幅360について、画面中心との差分
+
+                    # up down方向の不感帯を設定（±20未満ならゼロにする）
+                    c = 0.0 if abs(cx) < 10.0 else cx
+
+                    # up down方向のソフトウェアリミッタ(±100を超えないように)
+                    c =  100 if c >  100.0 else c
+                    c = -100 if c < -100.0 else c
+
+                    c = -c  # up down方向が逆だったので符号を反転
+
+                    print('cx=%f'%(cx) )
+                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
+                          # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                    #tello.send_rc_control( int(a), int(b), int(c), int(d) )
+
+
+                    # slide制御式(ゲインは低めの0.3)
+                    ax = 0.1 * (240 - mx)       # 画面横幅480について、画面中心との差分
+
+                    # slide方向の不感帯を設定（±20未満ならゼロにする）
+                    a = 0.0 if abs(ax) < 10.0 else ax
+
+                    # slide方向のソフトウェアリミッタ(±100を超えないように)
+                    a =  100 if a >  100.0 else a
+                    a = -100 if a < -100.0 else a
+
+                    a = -a  # slide方向が逆だったので符号を反転
+
+                    print('ax=%f'%(ax) )
+                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
+                          # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                    tello.send_rc_control( int(a), int(b), int(c), int(d) )
+
+
             # (4) ウィンドウに画像を表示
             #cv2.imshow("OpenCV Window", small_image)
             cv2.imshow('OpenCV Window', result_image)    # ウィンドウに表示するイメージを変えれば色々表示できる
@@ -239,10 +297,12 @@ def main():
                         tello.set_video_direction(Tello.CAMERA_FORWARD)
                         camera_dir = Tello.CAMERA_FORWARD      # フラグ変更
                     time.sleep(0.5)     # 映像が切り替わるまで少し待つ
-            elif key == ord('1'):       # 追跡モードON（トラックバー使用する）
+            elif key == ord('1'):       # 水平ライントレースON（トラックバー使用する）
                 auto_mode = 1
-            elif key == ord('2'):       # 追跡モードON（トラックバー使用しない）
+            elif key == ord('2'):       # 水平ライントレースON（トラックバー使用しない）
                 auto_mode = 2
+            elif key == ord('3'):       # 垂直ライントレースON（トラックバー使用しない）
+                auto_mode = 3
             elif key == ord('0'):       # 追跡モードOFF
                 tello.send_rc_control( 0, 0, 0, 0 )
                 auto_mode = 0
