@@ -76,6 +76,7 @@ def main():
     # 2: 固定の色設定で水平ライントレース（Macbookでトラックバーが動作しないので）
     # 3: 固定の色設定で垂直ライントレース
     auto_mode = 0
+    rad = 0
 
     time.sleep(0.5)     # 通信安定するまで待つ
 
@@ -246,6 +247,19 @@ def main():
                     tello.send_rc_control( int(a), int(b), int(c), int(d) )
 
 
+            # 円周運動をさせる
+            if auto_mode == 4:
+                speed = 30
+                rad += 1
+                if 360 < rad:
+                    rad = 0
+                x = np.cos(np.radians(rad)) * speed
+                z = np.sin(np.radians(rad)) * speed * 1.5   # 上下方向は鈍いのでゲタを履かせる
+                print("x=",x," z=",z)
+                # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                tello.send_rc_control( int(x), 0, int(z), 0 )
+
+
             # (4) ウィンドウに画像を表示
             #cv2.imshow("OpenCV Window", small_image)
             cv2.imshow('OpenCV Window', result_image)    # ウィンドウに表示するイメージを変えれば色々表示できる
@@ -303,9 +317,13 @@ def main():
                 auto_mode = 2
             elif key == ord('3'):       # 垂直ライントレースON（トラックバー使用しない）
                 auto_mode = 3
+            elif key == ord('4'):       # 垂直に円を描く
+                auto_mode = 4
             elif key == ord('0'):       # 追跡モードOFF
                 tello.send_rc_control( 0, 0, 0, 0 )
                 auto_mode = 0
+                rad = 0
+
 
             # (6) 10秒おきに'command'を送って、死活チェックを通す
             current_time = time.time()                          # 現在時刻を取得
