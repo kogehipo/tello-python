@@ -62,19 +62,33 @@ def main():
     def nothing(x):
         pass    # passは何もしないという命令
 
-    # トラックバーの生成
-    cv2.createTrackbar("H_min", "OpenCV Window", 0, 179, nothing)       # Hueの最大値は179
+    # トラックバーの生成（３つ目の引数が初期値。Hueの最大値は179）   
+    '''
+    # ケーブルドラムの緑色
+    #cv2.createTrackbar("H_min", "OpenCV Window", 10, 179, nothing)   # 黄
+    #cv2.createTrackbar("H_max", "OpenCV Window", 60, 179, nothing)   # 黄
+    cv2.createTrackbar("H_min", "OpenCV Window", 30, 179, nothing)   # 緑
+    cv2.createTrackbar("H_max", "OpenCV Window", 90, 179, nothing)   # 緑
+    #cv2.createTrackbar("H_min", "OpenCV Window", 90, 179, nothing)   # 青
+    #cv2.createTrackbar("H_max", "OpenCV Window", 150, 179, nothing)  # 青
+    cv2.createTrackbar("S_min", "OpenCV Window", 64, 255, nothing)
+    cv2.createTrackbar("S_max", "OpenCV Window", 255, 255, nothing)
+    cv2.createTrackbar("V_min", "OpenCV Window", 0, 255, nothing)
+    cv2.createTrackbar("V_max", "OpenCV Window", 255, 255, nothing)
+    '''
+    # 対象が黒の場合
+    cv2.createTrackbar("H_min", "OpenCV Window", 0, 179, nothing)     # Hueの最大値は179
     cv2.createTrackbar("H_max", "OpenCV Window", 179, 179, nothing)
     cv2.createTrackbar("S_min", "OpenCV Window", 0, 255, nothing)
     cv2.createTrackbar("S_max", "OpenCV Window", 255, 255, nothing)
     cv2.createTrackbar("V_min", "OpenCV Window", 0, 255, nothing)
-    cv2.createTrackbar("V_max", "OpenCV Window", 255, 255, nothing)
-    
+    cv2.createTrackbar("V_max", "OpenCV Window", 60, 255, nothing)    # 明度の上限を抑えると黒を認識する
+
     # 自動モードフラグ
     # 0: 手動操縦
-    # 1: 対象の色をトラックバーで設定して、水平ライントレース
-    # 2: 固定の色設定で水平ライントレース（Macbookでトラックバーが動作しないので）
-    # 3: 固定の色設定で垂直ライントレース
+    # 1: 水平ライントレース
+    # 2: 垂直ライントレース
+    # 3: 垂直円軌道
     auto_mode = 0
     direction = 0
     default_speed = 30  # トレースするときの初速度
@@ -101,7 +115,7 @@ def main():
                 small_image = cv2.rotate(small_image, cv2.ROTATE_90_CLOCKWISE)
 
             # (3) ここから画像処理
-            if auto_mode == 1 or auto_mode == 2:
+            if auto_mode == 1:
                 # 水平ライントレースの場合は注目する領域（下半分）を切り取る
                 bgr_image = small_image[250:359,0:479]
             else:
@@ -109,190 +123,178 @@ def main():
 
             hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)  # BGR画像 -> HSV画像
 
-            # (4) 追跡する対象物の色範囲を設定
-            if auto_mode == 1:
-                # トラックバーを使う場合はその値を取得
-                h_min = cv2.getTrackbarPos("H_min", "OpenCV Window")
-                h_max = cv2.getTrackbarPos("H_max", "OpenCV Window")
-                s_min = cv2.getTrackbarPos("S_min", "OpenCV Window")
-                s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
-                v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
-                v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
-            elif auto_mode == 2 or auto_mode == 3:
-                # モード２,3の場合は固定の色設定を使う。Macbookでトラックバーが動作しないため。
-                # また、Jetsonでは画面サイズが小さく操作できないため。
-                '''
-                # ケーブルドラムの緑色
-                # 黄
-                #h_min = 10
-                #h_max = 60
-                # 緑
-                h_min = 30
-                h_max = 90
-                # 青
-                #h_min = 90
-                #h_max = 150
-                s_min = 64
-                s_max = 255
-                v_min = 0
-                v_max = 255
-                '''
-                # 黒色
-                h_min = 0
-                h_max = 179
-                s_min = 0
-                s_max = 255
-                v_min = 0
-                v_max = 60
+            # (4) 追跡する対象物の色範囲を設定。トラックバーからその値を取得
+            h_min = cv2.getTrackbarPos("H_min", "OpenCV Window")
+            h_max = cv2.getTrackbarPos("H_max", "OpenCV Window")
+            s_min = cv2.getTrackbarPos("S_min", "OpenCV Window")
+            s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
+            v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
+            v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
+            #print("H=%d,%d S=%d,%d V=%d,%d "%(h_min, h_max, s_min, s_max, v_min, v_max))
 
             # (5) 対象物をトレースさせる処理
-            if auto_mode == 1 or auto_mode == 2 or auto_mode == 3:
-                # inRange関数で範囲を指定して、HSV画像を２値化。HSV画像なのでタプルもHSV並びで指定。
-                bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max))
+            # inRange関数で色範囲を指定して検出、二値化する。HSV画像なのでタプルもHSV並びで指定。
+            bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max))
 
-                # ２値画像を15×15に膨張させて虎ロープの画像をつなげる
-                # 虎ロープではない場合も有効と思われる。
-                kernel = np.ones((15,15), np.uint8)
-                bin_image = cv2.dilate(bin_image, kernel, iterations=1)
+            # ２値画像を15×15に膨張させて虎ロープの画像をつなげる
+            # 虎ロープではない場合も有効と思われる。
+            #kernel = np.ones((15,15), np.uint8)
+            kernel = np.ones((8,8), np.uint8)
+            bin_image = cv2.dilate(bin_image, kernel, iterations=1)
 
-                # 元のHSV画像に２値画像でマスクをかける -> マスクされた部分の色だけ残る
-                # （HSV画像 AND HSV画像 なので，自分自身とのANDは何も変化しない->マスクだけ効かせる）
-                result_image = cv2.bitwise_and(hsv_image, hsv_image, mask=bin_image)
+            # 元のHSV画像に２値画像でマスクをかける -> 対象物の色だけ残る
+            # （HSV画像 AND HSV画像 なので，自分自身とのANDは何も変化しない->マスクだけ効く）
+            result_image = cv2.bitwise_and(hsv_image, hsv_image, mask=bin_image)
 
-                if auto_mode == 3:    # 垂直トレースの場合は対象画像を進行方向に回転する
-                    # 座標の変換 (回転の中心、回転角度、拡大率)
-                    rotMat = cv2.getRotationMatrix2D((240,180), direction, 1)
-                    # 画像を回転　(入力画像の配列、変換行列、出力画像サイズ)
-                    result_image = cv2.warpAffine(result_image, rotMat, (480,360))
-                    bin_image = cv2.warpAffine(bin_image, rotMat, (480,360))
+            # 面積・重心計算付きのラベリング処理を行う
+            num_labels, label_image, stats, center = cv2.connectedComponentsWithStats(bin_image)
 
-                # 面積・重心計算付きのラベリング処理を行う
-                num_labels, label_image, stats, center = cv2.connectedComponentsWithStats(bin_image)
+            # 最大のラベルは画面全体を覆う黒なので不要．データを削除
+            num_labels = num_labels - 1
+            stats = np.delete(stats, 0, 0)
+            center = np.delete(center, 0, 0)
 
-                # 最大のラベルは画面全体を覆う黒なので不要．データを削除
-                num_labels = num_labels - 1
-                stats = np.delete(stats, 0, 0)
-                center = np.delete(center, 0, 0)
+            if num_labels >= 1:
+                # 面積最大のインデックスを取得
+                max_index = np.argmax(stats[:,4])
+                #print(max_index)
 
-                if num_labels >= 1:
-                    # 面積最大のインデックスを取得
-                    max_index = np.argmax(stats[:,4])
-                    #print(max_index)
+                # 面積最大のラベルのx,y,w,h,面積s,重心位置mx,myを得る
+                x = stats[max_index][0]
+                y = stats[max_index][1]
+                w = stats[max_index][2]
+                h = stats[max_index][3]
+                s = stats[max_index][4]
+                mx = int(center[max_index][0])
+                my = int(center[max_index][1])
+                #print("(x,y)=%d,%d (w,h)=%d,%d s=%d (mx,my)=%d,%d"%(x, y, w, h, s, mx, my) )
 
-                    # 面積最大のラベルのx,y,w,h,面積s,重心位置mx,myを得る
-                    x = stats[max_index][0]
-                    y = stats[max_index][1]
-                    w = stats[max_index][2]
-                    h = stats[max_index][3]
-                    s = stats[max_index][4]
-                    mx = int(center[max_index][0])
-                    my = int(center[max_index][1])
-                    #print("(x,y)=%d,%d (w,h)=%d,%d s=%d (mx,my)=%d,%d"%(x, y, w, h, s, mx, my) )
+                # ラベルを囲うバウンディングボックスを描画
+                cv2.rectangle(result_image, (x, y), (x+w, y+h), (255, 0, 255))
 
-                    # ラベルを囲うバウンディングボックスを描画
-                    cv2.rectangle(result_image, (x, y), (x+w, y+h), (255, 0, 255))
+                # 重心位置の座標と面積を表示
+                cv2.putText(result_image, "%d,%d"%(mx,my), (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
+                cv2.putText(result_image, "%d"%(s), (x, y+h+30), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
+                cv2.circle(result_image, (mx, my), 10, (255, 0, 255))   # 重心位置に円を描画
 
-                    # 重心位置の座標と面積を表示
-                    cv2.putText(result_image, "%d,%d"%(mx,my), (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
-                    cv2.putText(result_image, "%d"%(s), (x, y+h+30), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
+                # 自動操縦のときは、ここで飛行方向を決める
+                if auto_mode == 1:   # 水平トレース
+                    speed = default_speed  # 前方への進行速度は一定
 
-                    # 自動操縦のときは、ここで飛行方向を決める
-                    if auto_mode == 1 or auto_mode == 2:   # 水平トレース
-                        speed = default_speed  # 前方への進行速度は一定
+                    # 制御式(0.4はゲイン、様子を見て調整すること)
+                    dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
 
-                        # 制御式(0.4はゲイン、様子を見て調整すること)
-                        dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
+                    # 旋回方向の不感帯を設定（±20未満ならゼロにする）
+                    d = 0.0 if abs(dx) < 10.0 else dx
 
-                        # 旋回方向の不感帯を設定（±20未満ならゼロにする）
-                        d = 0.0 if abs(dx) < 10.0 else dx
+                    # 旋回方向のソフトウェアリミッタ(±100を超えないように)
+                    d =  100 if d >  100.0 else d
+                    d = -100 if d < -100.0 else d
 
-                        # 旋回方向のソフトウェアリミッタ(±100を超えないように)
-                        d =  100 if d >  100.0 else d
-                        d = -100 if d < -100.0 else d
+                    d = -d  # 旋回方向が逆だったので符号を反転
 
-                        d = -d  # 旋回方向が逆だったので符号を反転
+                    print('dx=%f'%(dx) )
+                    # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                    tello.send_rc_control( 0, int(speed), 0, int(d) )
 
-                        print('dx=%f'%(dx) )
+                elif auto_mode == 2:    # 垂直トレース
+                    speed = default_speed * 1.2  # 前方への進行速度は一定
+
+                    # 画面中心から重心の方向dirを求める
+                    dx = 0.4 * (mx - 240)
+                    dy = 0.4 * (180 - my)
+                    if dx == 0:
+                        if 0 <= dy:
+                            dir = 0
+                        else:
+                            dir = 180
+                    else:
+                        dir = np.degrees(np.arctan2(dy, dx))
+
+                    # 現在の進行方向directionと、重み方向dirの差分
+                    diff = dir - direction
+
+
+
+
+
+                    x = np.sin(np.radians(direction)) * speed
+                    z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
+
+                    # 制御式(0.4はゲイン、様子を見て調整すること)
+                    dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
+
+                    # 旋回方向の不感帯を設定（±20未満ならゼロにする）
+                    d = 0.0 if abs(dx) < 10.0 else dx
+
+                    # 旋回方向のソフトウェアリミッタ(±100を超えないように)
+                    d =  100 if d >  100.0 else d
+                    d = -100 if d < -100.0 else d
+
+                    d = -d  # 旋回方向が逆だったので符号を反転
+
+                    direction += d  # 飛行方向を調整
+                    print('direction=%f'%(direction) )
+                    x = np.sin(np.radians(direction)) * speed
+                    z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
+                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
                         # 引数の意味： left-right velocity, forward-backward, up-down, yaw
-                        tello.send_rc_control( 0, int(speed), 0, int(d) )
-
-                    elif auto_mode == 3:    # 垂直トレース
-                        speed = default_speed  # 前方への進行速度は一定
-
-                        # 制御式(0.4はゲイン、様子を見て調整すること)
-                        dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
-
-                        # 旋回方向の不感帯を設定（±20未満ならゼロにする）
-                        d = 0.0 if abs(dx) < 10.0 else dx
-
-                        # 旋回方向のソフトウェアリミッタ(±100を超えないように)
-                        d =  100 if d >  100.0 else d
-                        d = -100 if d < -100.0 else d
-
-                        d = -d  # 旋回方向が逆だったので符号を反転
-
-                        direction += d  # 飛行方向を調整
-                        print('direction=%f'%(direction) )
-                        x = np.sin(np.radians(direction)) * speed
-                        z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
-                        #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
-                            # 引数の意味： left-right velocity, forward-backward, up-down, yaw
-                        tello.send_rc_control( int(x), 0, int(z), 0 )
+                    tello.send_rc_control( int(x), 0, int(z), 0 )
 
                     '''
-                    elif auto_mode == 3:    # 垂直トレース
-                        a = b = c = d = 0
+                    a = b = c = d = 0
 
-                        # up down制御式(ゲインは低めの0.3)
-                        cx = 0.3 * (180 - my)       # 画面tate幅360について、画面中心との差分
+                    # up down制御式(ゲインは低めの0.3)
+                    cx = 0.3 * (180 - my)       # 画面tate幅360について、画面中心との差分
 
-                        # up down方向の不感帯を設定（±20未満ならゼロにする）
-                        c = 0.0 if abs(cx) < 10.0 else cx
+                    # up down方向の不感帯を設定（±20未満ならゼロにする）
+                    c = 0.0 if abs(cx) < 10.0 else cx
 
-                        # up down方向のソフトウェアリミッタ(±100を超えないように)
-                        c =  100 if c >  100.0 else c
-                        c = -100 if c < -100.0 else c
+                    # up down方向のソフトウェアリミッタ(±100を超えないように)
+                    c =  100 if c >  100.0 else c
+                    c = -100 if c < -100.0 else c
 
-                        c = -c  # up down方向が逆だったので符号を反転
+                    c = -c  # up down方向が逆だったので符号を反転
 
-                        print('cx=%f'%(cx) )
-                        #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
-                            # 引数の意味： left-right velocity, forward-backward, up-down, yaw
-                        #tello.send_rc_control( int(a), int(b), int(c), int(d) )
+                    print('cx=%f'%(cx) )
+                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
+                        # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                    #tello.send_rc_control( int(a), int(b), int(c), int(d) )
 
 
-                        # slide制御式(ゲインは低めの0.3)
-                        ax = 0.1 * (240 - mx)       # 画面横幅480について、画面中心との差分
+                    # slide制御式(ゲインは低めの0.3)
+                    ax = 0.1 * (240 - mx)       # 画面横幅480について、画面中心との差分
 
-                        # slide方向の不感帯を設定（±20未満ならゼロにする）
-                        a = 0.0 if abs(ax) < 10.0 else ax
+                    # slide方向の不感帯を設定（±20未満ならゼロにする）
+                    a = 0.0 if abs(ax) < 10.0 else ax
 
-                        # slide方向のソフトウェアリミッタ(±100を超えないように)
-                        a =  100 if a >  100.0 else a
-                        a = -100 if a < -100.0 else a
+                    # slide方向のソフトウェアリミッタ(±100を超えないように)
+                    a =  100 if a >  100.0 else a
+                    a = -100 if a < -100.0 else a
 
-                        a = -a  # slide方向が逆だったので符号を反転
+                    a = -a  # slide方向が逆だったので符号を反転
 
-                        print('ax=%f'%(ax) )
-                        #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
-                            # 引数の意味： left-right velocity, forward-backward, up-down, yaw
-                        tello.send_rc_control( int(a), int(b), int(c), int(d) )
+                    print('ax=%f'%(ax) )
+                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
+                        # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                    tello.send_rc_control( int(a), int(b), int(c), int(d) )
                     '''
 
-            # 円周運動をさせる
-            elif auto_mode == 4:
-                # 速度speedで、方向direction(上方向0度〜時計回りに359度)へ移動させる。
-                # ここでは360ステップで1回転させている。
-                speed = default_speed
-                direction += 1
-                if 360 <= direction:
-                    direction = 0
-                x = np.sin(np.radians(direction)) * speed
-                z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
-                print("x=",x," z=",z)
-                # 引数の意味： left-right, forward-backward, up-down, yaw
-                tello.send_rc_control( int(x), 0, int(z), 0 )
-
+                # 円周運動をさせる
+                elif auto_mode == 3:
+                    # 速度speedで、方向direction(上方向0度〜時計回りに359度)へ移動させる。
+                    # ここでは360ステップで1回転させている。
+                    speed = default_speed * 1.2    # 大きくすると大きな円を描く
+                    direction -= 1         # 初期値90度から反時計回りに回転
+                    if 360 <= direction:
+                        direction = 0
+                    elif direction < 0:
+                        direction += 360
+                    x = np.sin(np.radians(direction)) * speed
+                    z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
+                    print("x=",x," z=",z)
+                    # 引数の意味： left-right, forward-backward, up-down, yaw
+                    tello.send_rc_control( int(x), 0, int(z), 0 )
 
             # (6) ウィンドウに画像を表示
             #cv2.imshow("OpenCV Window", small_image)
@@ -345,15 +347,13 @@ def main():
                         tello.set_video_direction(Tello.CAMERA_FORWARD)
                         camera_dir = Tello.CAMERA_FORWARD      # フラグ変更
                     time.sleep(0.5)     # 映像が切り替わるまで少し待つ
-            elif key == ord('1'):       # 水平ライントレースON（トラックバー使用する）
+            elif key == ord('1'):       # 水平ライントレースON
                 auto_mode = 1
-            elif key == ord('2'):       # 水平ライントレースON（トラックバー使用しない）
+            elif key == ord('2'):       # 垂直ライントレースON
                 auto_mode = 2
-            elif key == ord('3'):       # 垂直ライントレースON（トラックバー使用しない）
-                auto_mode = 3
                 direction = 45          # 移動方向の初期値は右上
-            elif key == ord('4'):       # 垂直に円を描く
-                auto_mode = 4
+            elif key == ord('3'):       # 垂直に円を描く
+                auto_mode = 3
                 direction = 90          # 移動方向の初期値は右
             elif key == ord('0'):       # 追跡モードOFF
                 tello.send_rc_control( 0, 0, 0, 0 )
