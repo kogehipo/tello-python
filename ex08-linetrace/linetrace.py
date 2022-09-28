@@ -90,8 +90,12 @@ def main():
     # 2: 垂直ライントレース
     # 3: 垂直円軌道
     auto_mode = 0
+
+    # 垂直トレース時の進行方向（上を0度、時計回り）
     direction = 0
-    default_speed = 30  # トレースするときの初速度
+
+    # トレースするときの基準速度
+    default_speed = 30
 
     time.sleep(0.5)     # 通信安定するまで待つ
 
@@ -209,76 +213,32 @@ def main():
                         else:
                             dir = 180
                     else:
+                        # arctan2()の解説は下記
+                        # https://note.nkmk.me/python-numpy-sin-con-tan/
                         dir = np.degrees(np.arctan2(dy, dx))
 
                     # 現在の進行方向directionと、重み方向dirの差分
                     diff = dir - direction
+                    diff = diff + 360 if diff < 0    else diff
+                    diff = diff - 360 if 360 <= diff else diff
 
-
-
-
-
-                    x = np.sin(np.radians(direction)) * speed
-                    z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
-
-                    # 制御式(0.4はゲイン、様子を見て調整すること)
-                    dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
-
-                    # 旋回方向の不感帯を設定（±20未満ならゼロにする）
-                    d = 0.0 if abs(dx) < 10.0 else dx
+                    # 転換方向の不感帯を設定（±5度未満ならゼロにする）
+                    diff = 0.0 if abs(diff) < 5.0 else diff
 
                     # 旋回方向のソフトウェアリミッタ(±100を超えないように)
-                    d =  100 if d >  100.0 else d
-                    d = -100 if d < -100.0 else d
+                    diff =  60 if diff >  60.0 else diff
+                    diff = -60 if diff < -60.0 else diff
 
-                    d = -d  # 旋回方向が逆だったので符号を反転
-
-                    direction += d  # 飛行方向を調整
+                    # 方向転換
+                    direction += diff
+                    direction = direction + 360 if direction < 0    else direction
+                    direction = direction - 360 if 360 <= direction else direction
                     print('direction=%f'%(direction) )
+
                     x = np.sin(np.radians(direction)) * speed
                     z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
-                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
-                        # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                    # 引数の意味： left-right, forward-backward, up-down, yaw
                     tello.send_rc_control( int(x), 0, int(z), 0 )
-
-                    '''
-                    a = b = c = d = 0
-
-                    # up down制御式(ゲインは低めの0.3)
-                    cx = 0.3 * (180 - my)       # 画面tate幅360について、画面中心との差分
-
-                    # up down方向の不感帯を設定（±20未満ならゼロにする）
-                    c = 0.0 if abs(cx) < 10.0 else cx
-
-                    # up down方向のソフトウェアリミッタ(±100を超えないように)
-                    c =  100 if c >  100.0 else c
-                    c = -100 if c < -100.0 else c
-
-                    c = -c  # up down方向が逆だったので符号を反転
-
-                    print('cx=%f'%(cx) )
-                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
-                        # 引数の意味： left-right velocity, forward-backward, up-down, yaw
-                    #tello.send_rc_control( int(a), int(b), int(c), int(d) )
-
-
-                    # slide制御式(ゲインは低めの0.3)
-                    ax = 0.1 * (240 - mx)       # 画面横幅480について、画面中心との差分
-
-                    # slide方向の不感帯を設定（±20未満ならゼロにする）
-                    a = 0.0 if abs(ax) < 10.0 else ax
-
-                    # slide方向のソフトウェアリミッタ(±100を超えないように)
-                    a =  100 if a >  100.0 else a
-                    a = -100 if a < -100.0 else a
-
-                    a = -a  # slide方向が逆だったので符号を反転
-
-                    print('ax=%f'%(ax) )
-                    #drone.send_command('rc %s %s %s %s'%(int(a), int(b), int(c), int(d)) )
-                        # 引数の意味： left-right velocity, forward-backward, up-down, yaw
-                    tello.send_rc_control( int(a), int(b), int(c), int(d) )
-                    '''
 
                 # 円周運動をさせる
                 elif auto_mode == 3:
