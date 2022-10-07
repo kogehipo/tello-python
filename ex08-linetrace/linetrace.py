@@ -202,56 +202,69 @@ def main():
                     tello.send_rc_control( 0, int(speed), 0, int(d) )
 
                 elif auto_mode == 2:    # 垂直トレース
-                    speed = default_speed * 1.2  # 前方への進行速度は一定
+                    speed = default_speed * 0.2 # 前方への進行速度は一定
 
                     # 画面中心から重心の方向dirを求める
-                    dx = 0.4 * (mx - 240)
-                    dy = 0.4 * (180 - my)
-                    if dx == 0:
-                        if 0 <= dy:
-                            dir = 0
-                        else:
-                            dir = 180
-                    else:
-                        # arctan2()の解説は下記
-                        # https://note.nkmk.me/python-numpy-sin-con-tan/
-                        dir = np.degrees(np.arctan2(dy, dx))
+                    dx = 0.3 * (mx - 240)
+                    dz = 0.3 * (180 - my)  # 画像のy座標は下向きなので逆
 
+                    # 角度を求める。arctan2()の解説は下記
+                    # https://note.nkmk.me/python-numpy-sin-con-tan/
+                    dir = np.degrees(np.arctan2(dz, dx))
+                    dir = dir + 360 if dir < 0    else dir
+                    dir = dir - 360 if 360 <= dir else dir
+
+                    '''
                     # 現在の進行方向directionと、重み方向dirの差分
                     diff = dir - direction
-                    diff = diff + 360 if diff < 0    else diff
-                    diff = diff - 360 if 360 <= diff else diff
+
+                    # 差分diffが180度を超える時は反対向きに角度を取る
+                    if diff > 180:
+                        diff = diff - 360
+                    elif diff < -180:
+                        diff = diff + 360
 
                     # 転換方向の不感帯を設定（±5度未満ならゼロにする）
-                    diff = 0.0 if abs(diff) < 5.0 else diff
+                    #diff = 0.0 if abs(diff) < 1.0 else diff
 
-                    # 旋回方向のソフトウェアリミッタ(±100を超えないように)
-                    diff =  60 if diff >  60.0 else diff
-                    diff = -60 if diff < -60.0 else diff
+                    # 旋回方向のソフトウェアリミッタ(±60を超えないように)
+                    #diff =  60 if diff >  60.0 else diff
+                    #diff = -60 if diff < -60.0 else diff
+
+                    print('dir=%f, direction=%f, diff=%f'%(dir, direction, diff) )
 
                     # 方向転換
                     direction += diff
                     direction = direction + 360 if direction < 0    else direction
                     direction = direction - 360 if 360 <= direction else direction
-                    print('direction=%f'%(direction) )
+                    '''
 
-                    x = np.sin(np.radians(direction)) * speed
-                    z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
+                    direction = dir
+
+                    x = np.cos(np.radians(direction)) * speed
+                    z = np.sin(np.radians(direction)) * speed
+
+                    print('x=%f, z=%f'%(x, z) )
+                    cv2.arrowedLine(result_image, pt1=(240,180), pt2=(240+int(x)*5,180-int(z)*5),
+                            color=(255, 0, 255), thickness=3, line_type=cv2.LINE_4,
+                            shift=0, tipLength=0.2)
+
+                    z = z * 2   # 上下方向は鈍いのでゲタを履かせる
                     # 引数の意味： left-right, forward-backward, up-down, yaw
                     tello.send_rc_control( int(x), 0, int(z), 0 )
 
                 # 円周運動をさせる
                 elif auto_mode == 3:
-                    # 速度speedで、方向direction(上方向0度〜時計回りに359度)へ移動させる。
+                    # 右を０度の座標系
+                    # 速度speedで、方向direction(右方向0度〜反時計回りに359度)へ移動させる。
                     # ここでは360ステップで1回転させている。
-                    speed = default_speed * 1.2    # 大きくすると大きな円を描く
-                    direction -= 1         # 初期値90度から反時計回りに回転
-                    if 360 <= direction:
-                        direction = 0
-                    elif direction < 0:
-                        direction += 360
-                    x = np.sin(np.radians(direction)) * speed
-                    z = np.cos(np.radians(direction)) * speed * 1.5   # 上下方向は鈍いので+50%のゲタを履かせる
+                    speed = default_speed * 1.0    # 大きくすると大きな円を描く
+                    direction += 1         # 初期値（右）から反時計回りに回転
+                    direction = direction + 360 if direction < 0    else direction
+                    direction = direction - 360 if 360 <= direction else direction
+                    x = np.cos(np.radians(direction)) * speed
+                    z = np.sin(np.radians(direction)) * speed
+                    z = z*1.5 if 0 < z else z   # 上方向は鈍いので+50%のゲタを履かせる
                     print("x=",x," z=",z)
                     # 引数の意味： left-right, forward-backward, up-down, yaw
                     tello.send_rc_control( int(x), 0, int(z), 0 )
@@ -314,7 +327,7 @@ def main():
                 direction = 45          # 移動方向の初期値は右上
             elif key == ord('3'):       # 垂直に円を描く
                 auto_mode = 3
-                direction = 90          # 移動方向の初期値は右
+                direction = 0          # 移動方向の初期値は右
             elif key == ord('0'):       # 追跡モードOFF
                 tello.send_rc_control( 0, 0, 0, 0 )
                 auto_mode = 0
