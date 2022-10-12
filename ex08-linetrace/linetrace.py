@@ -91,10 +91,10 @@ def main():
     # 3: 垂直円軌道
     auto_mode = 0
 
-    # 垂直トレース時の進行方向（上を0度、時計回り）
-    direction = 0
+    # 垂直トレース時の進行方向（右を0度、反時計回りに360度）
+    direction = 90
 
-    # トレースするときの基準速度
+    # トレースするときの基準速度（値の絶対値には意味はない）
     default_speed = 30
 
     time.sleep(0.5)     # 通信安定するまで待つ
@@ -108,43 +108,58 @@ def main():
         # 永久ループで繰り返す
         while True:
 
-            # (1) 画像取得
+            # Telloのカメラ画像を取得
             image = frame_read.frame    # 映像を1フレーム取得しimage変数に格納
 
-            # (2) 画像サイズ変更と、カメラ方向による回転
+            # 画像サイズ変更
             small_image = cv2.resize(image, dsize=(480,360) )   # 画像サイズを半分に縮小
 
             # 下向きカメラは90°回転して画像の上を前方にする
             if camera_dir == Tello.CAMERA_DOWNWARD:
                 small_image = cv2.rotate(small_image, cv2.ROTATE_90_CLOCKWISE)
 
-            # (3) ここから画像処理
+            # 水平ライントレースの場合は注目する領域（下半分）を切り取る
             if auto_mode == 1:
-                # 水平ライントレースの場合は注目する領域（下半分）を切り取る
-                bgr_image = small_image[250:359,0:479]
-            else:
-                bgr_image = small_image
+                small_image = small_image[250:359,0:479]
 
-            hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)  # BGR画像 -> HSV画像
+            # BGR画像 -> HSV画像 に変換
+            hsv_image = cv2.cvtColor(small_image, cv2.COLOR_BGR2HSV)
 
-            # (4) 追跡する対象物の色範囲を設定。トラックバーからその値を取得
+            # トラックバーからその値を取得して、追跡する対象物の色範囲を設定。
             h_min = cv2.getTrackbarPos("H_min", "OpenCV Window")
             h_max = cv2.getTrackbarPos("H_max", "OpenCV Window")
             s_min = cv2.getTrackbarPos("S_min", "OpenCV Window")
             s_max = cv2.getTrackbarPos("S_max", "OpenCV Window")
             v_min = cv2.getTrackbarPos("V_min", "OpenCV Window")
             v_max = cv2.getTrackbarPos("V_max", "OpenCV Window")
-            #print("H=%d,%d S=%d,%d V=%d,%d "%(h_min, h_max, s_min, s_max, v_min, v_max))
 
-            # (5) 対象物をトレースさせる処理
             # inRange関数で色範囲を指定して検出、二値化する。HSV画像なのでタプルもHSV並びで指定。
             bin_image = cv2.inRange(hsv_image, (h_min, s_min, v_min), (h_max, s_max, v_max))
 
             # ２値画像を15×15に膨張させて虎ロープの画像をつなげる
-            # 虎ロープではない場合も有効と思われる。
+            # 元々は虎ロープに対応するための処理。そうではない場合も有効と思われる。
             #kernel = np.ones((15,15), np.uint8)
-            kernel = np.ones((8,8), np.uint8)
+            kernel = np.ones((8,8), np.uint8)   # 8x8に修正
             bin_image = cv2.dilate(bin_image, kernel, iterations=1)
+
+            # 垂直ライントレースの場合は進行方向のデータのみに注目する
+            if auto_mode == 2:
+                # マスクを作って黒で塗り潰す
+                mask_image = np.zeros((360, 480), np.uint8)
+                cv2.rectangle(mask_image, (0, 0), (480, 360), 0, thickness=-1)
+
+                r  = 500   # 「のぞき窓」の半径。大きくすると視野が広くなる。
+                cx = 240 + (np.cos(np.radians(direction)) * r)
+                cz = 180 - (np.sin(np.radians(direction)) * r)
+                cv2.circle(mask_image,
+                        center=(int(cx), int(cz)),
+                        radius=r,              # 進行方向の領域を
+                        color=255,             # 白で
+                        thickness=-1,          # 塗ったのが「のぞき窓」になる
+                        lineType=cv2.LINE_4,
+                        shift=0)
+                # 元のHSV画像にのぞき窓のマスクをかける
+                bin_image = cv2.bitwise_and(bin_image, mask_image)
 
             # 元のHSV画像に２値画像でマスクをかける -> 対象物の色だけ残る
             # （HSV画像 AND HSV画像 なので，自分自身とのANDは何も変化しない->マスクだけ効く）
@@ -197,25 +212,23 @@ def main():
 
                     d = -d  # 旋回方向が逆だったので符号を反転
 
-                    print('dx=%f'%(dx) )
                     # 引数の意味： left-right velocity, forward-backward, up-down, yaw
                     tello.send_rc_control( 0, int(speed), 0, int(d) )
 
                 elif auto_mode == 2:    # 垂直トレース
-                    speed = default_speed * 0.2 # 前方への進行速度は一定
+                    speed = default_speed  # 前方への進行速度は一定
 
                     # 画面中心から重心の方向dirを求める
-                    dx = 0.3 * (mx - 240)
-                    dz = 0.3 * (180 - my)  # 画像のy座標は下向きなので逆
+                    dx = (mx - 240)
+                    dz = (180 - my)  # 画像のy座標は下向きなので逆
 
-                    # 角度を求める。arctan2()の解説は下記
+                    # 重心方向への角度を求める。arctan2()の解説は下記
                     # https://note.nkmk.me/python-numpy-sin-con-tan/
                     dir = np.degrees(np.arctan2(dz, dx))
                     dir = dir + 360 if dir < 0    else dir
                     dir = dir - 360 if 360 <= dir else dir
 
-                    '''
-                    # 現在の進行方向directionと、重み方向dirの差分
+                    # 現在の進行方向directionと、重心方向dirの差分
                     diff = dir - direction
 
                     # 差分diffが180度を超える時は反対向きに角度を取る
@@ -224,32 +237,32 @@ def main():
                     elif diff < -180:
                         diff = diff + 360
 
-                    # 転換方向の不感帯を設定（±5度未満ならゼロにする）
-                    #diff = 0.0 if abs(diff) < 1.0 else diff
+                    # 転換方向の不感帯を設定（±0.1度未満ならゼロにする）
+                    #diff = 0.0 if abs(diff) < 0.05 else diff
 
-                    # 旋回方向のソフトウェアリミッタ(±60を超えないように)
-                    #diff =  60 if diff >  60.0 else diff
-                    #diff = -60 if diff < -60.0 else diff
-
-                    print('dir=%f, direction=%f, diff=%f'%(dir, direction, diff) )
+                    # 旋回方向のソフトウェアリミッタ
+                    diff =  0.5 if diff >  0.5 else diff
+                    diff = -0.5 if diff < -0.5 else diff
+                    print('direction=%f, diff=%f, dir=%f'%(direction, diff, dir) )
 
                     # 方向転換
                     direction += diff
                     direction = direction + 360 if direction < 0    else direction
                     direction = direction - 360 if 360 <= direction else direction
-                    '''
-
-                    direction = dir
 
                     x = np.cos(np.radians(direction)) * speed
                     z = np.sin(np.radians(direction)) * speed
-
                     print('x=%f, z=%f'%(x, z) )
+
+                    # 進行方向を矢印で表示
                     cv2.arrowedLine(result_image, pt1=(240,180), pt2=(240+int(x)*5,180-int(z)*5),
                             color=(255, 0, 255), thickness=3, line_type=cv2.LINE_4,
                             shift=0, tipLength=0.2)
 
-                    z = z * 2   # 上下方向は鈍いのでゲタを履かせる
+                    # 推進力の調整。上下方向は強めにする。
+                    x = x * 0.4
+                    z = z * 0.8
+
                     # 引数の意味： left-right, forward-backward, up-down, yaw
                     tello.send_rc_control( int(x), 0, int(z), 0 )
 
@@ -269,12 +282,13 @@ def main():
                     # 引数の意味： left-right, forward-backward, up-down, yaw
                     tello.send_rc_control( int(x), 0, int(z), 0 )
 
-            # (6) ウィンドウに画像を表示
-            #cv2.imshow("OpenCV Window", small_image)
-            cv2.imshow('OpenCV Window', result_image)    # ウィンドウに表示するイメージを変えれば色々表示できる
+            # ウィンドウに画像を表示。ウィンドウに表示するイメージを変えれば色々表示できる。
+            #if auto_mode == 2:
+            #    cv2.imshow("Mask Window", mask_image)
+            cv2.imshow('OpenCV Window', result_image)
             cv2.imshow('Binary Image', bin_image) 
 
-            # (7) OpenCVウィンドウでキー入力を1ms待つ
+            # OpenCVウィンドウでキー入力を1ms待つ。
             # このコマンドはOpenCVのウインドウでタイプすること。
             key = cv2.waitKey(1) & 0xFF
 
@@ -333,6 +347,16 @@ def main():
                 auto_mode = 0
                 direction = 0
 
+            '''
+            elif key == ord('u'):           # 左上
+                tello.send_rc_control( int(-default_speed/2), 0, int(default_speed/2), 0 )
+            elif key == ord('i'):           # 右上
+                tello.send_rc_control( int(default_speed/2), 0, int(default_speed/2), 0 )
+            elif key == ord('j'):           # 左下
+                tello.send_rc_control( int(-default_speed/2), 0, int(-default_speed/2), 0 )
+            elif key == ord('k'):           # 右下
+                tello.send_rc_control( int(default_speed/2), 0, int(-default_speed/2), 0 )
+            '''
 
             # (8) 10秒おきに'command'を送って、死活チェックを通す
             current_time = time.time()                          # 現在時刻を取得
