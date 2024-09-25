@@ -11,6 +11,7 @@
 
 2. Python3が動く環境を作成してください。
     Python3.9を標準にします。（後で変更するかもしれません）
+    Python3.11では pip3 install -r requirements.txt コマンドが失敗します。
     virtualenv等で仮想環境を作ることを推奨します。
     以下、コマンドプロンプトで (env) と記載されているのは、
     "env" という名前の仮想環境の中であることを示します。
@@ -27,7 +28,7 @@
 5. クローンしたディレクトリに移動して、pip3で必要なライブラリをインストールします。
 ```
     (env) $ cd tello-python
-    (env) $ pip3 install -r requirement.txt
+    (env) $ pip3 install -r requirements.txt
 ```
 6. "exXX"で始まるディレクトリがそれぞれサンプルです。
 
@@ -39,6 +40,7 @@ https://deviceplus.jp/hi-tech/drone-on-auto-pilot-with-python-03/
 
 TELLOのコマンドを直接送信しています。
 コマンドが動作しないことが頻繁にありますが原因不明です。
+Windows/WSLでも動作します。
 
 # ex02-状態モニター
 
@@ -62,7 +64,7 @@ https://github.com/dji-sdk/Tello-Python
 ```
     (env) $ python3 tello_test.py command.txt
 ```
-やはりコマンドが動作しないことが頻繁にあります。コマンドのレスポンスを待っている間にタイム・アウトしてしまいます。下位にlogという名前のディレクトリを作っておくとログが保存されます。
+フォルダー配下のREADME.mdも参考にしてください。Windows/WSLでも動作します。やはりコマンドが動作しないことが頻繁にあります。コマンドのレスポンスを待っている間にタイム・アウトしてしまいます。下位にlogという名前のディレクトリを作っておくとログが保存されます。
 
 # ex04-コマンド入力で制御
 
@@ -70,7 +72,7 @@ https://github.com/dji-sdk/Tello-Python
 
 https://qiita.com/takanorimutoh/items/759734f17321344615b6
 
-TELLOに送るコマンドを随時キーボードからタイプする。最初に "command" が必要。
+TELLOに送るコマンドを随時キーボードからタイプする。最初に "command" が必要。Windows/WSLでも動く。
 ```
     (env) $ python3 Tello3.py
 
@@ -100,7 +102,8 @@ ex01、ex03と同じはずだが、これはうまく行く。何が違うかは
 
 https://github.com/damiafuentes/DJITelloPy  （インターフェース４月号の推薦）
 
-この中のsimple.pyそのもの。エラーチェックを行っているらしく、安定動作する。Windows/WSL2での動作に問題があり少し改変してある。
+この中のsimple.pyそのもの。エラーチェックを行っているらしく、安定動作する。Windows/WSL2での動作に問題があるため少し改変してあり、動作する。
+Firewallが邪魔をするのでESET等のウイルス対策ソフトはアンインストールすること。
 
 # ex06-opencv-template
 
