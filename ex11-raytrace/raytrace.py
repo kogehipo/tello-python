@@ -10,11 +10,11 @@
 # 
 # Use W, A, S, D for moving, E, Q for rotating and R, F for going up and down.
 # When starting the script the Tello will takeoff, pressing ESC makes it land
-#  and the script exit.
+# and the script exits.
 #
 # 2024/09/27
 # 水平ライントレース、垂直ライントレースに加え、
-# 光源あるいは照射された輝点を追跡する機能の実装を開始。
+# 光源あるいはレーザー照射された輝点を追跡する機能の実装を開始。
 # auto_mode で自動モードを制御。
 
 from djitellopy import Tello    # DJITelloPyのTelloクラスをインポート
@@ -78,6 +78,7 @@ def main():
     cv2.createTrackbar("V_min", "OpenCV Window", 0, 255, nothing)
     cv2.createTrackbar("V_max", "OpenCV Window", 255, 255, nothing)
     '''
+    '''
     # 対象が黒の場合
     cv2.createTrackbar("H_min", "OpenCV Window", 0, 179, nothing)     # Hueの最大値は179
     cv2.createTrackbar("H_max", "OpenCV Window", 179, 179, nothing)
@@ -85,12 +86,21 @@ def main():
     cv2.createTrackbar("S_max", "OpenCV Window", 255, 255, nothing)
     cv2.createTrackbar("V_min", "OpenCV Window", 0, 255, nothing)
     cv2.createTrackbar("V_max", "OpenCV Window", 60, 255, nothing)    # 明度の上限を抑えると黒を認識する
+    '''
+    # レーザーポインタ
+    cv2.createTrackbar("H_min", "OpenCV Window", 0, 179, nothing)     # Hueの最大値は179
+    cv2.createTrackbar("H_max", "OpenCV Window", 179, 179, nothing)
+    cv2.createTrackbar("S_min", "OpenCV Window", 0, 255, nothing)
+    cv2.createTrackbar("S_max", "OpenCV Window", 255, 255, nothing)
+    cv2.createTrackbar("V_min", "OpenCV Window", 200, 255, nothing)
+    cv2.createTrackbar("V_max", "OpenCV Window", 255, 255, nothing)    # 明度の上限を抑えると黒を認識する
 
     # 自動モードフラグ
     # 0: 手動操縦
     # 1: 水平ライントレース
     # 2: 垂直ライントレース
     # 3: 垂直円軌道
+    # 4: レーザーポインタによる誘導
     auto_mode = 0
 
     # 垂直トレース時の進行方向（右を0度、反時計回りに360度）
@@ -145,8 +155,7 @@ def main():
             bin_image = cv2.dilate(bin_image, kernel, iterations=1)
 
             # 垂直ライントレースの場合は進行方向のデータのみに注目する
-            #if auto_mode == 2:
-            if auto_mode == 2 or auto_mode == 4:
+            if auto_mode == 2:
                 # マスクを作って黒で塗り潰す
                 mask_image = np.zeros((360, 480), np.uint8)
                 cv2.rectangle(mask_image, (0, 0), (480, 360), 0, thickness=-1)
@@ -169,6 +178,10 @@ def main():
             result_image = cv2.bitwise_and(hsv_image, hsv_image, mask=bin_image)
 
             # 面積・重心計算付きのラベリング処理を行う
+            # num_labels = ラベルの数。ただし画像の背景の番号は0とラベリングされている。
+            # label_image = ラベリング結果の画像。各ピクセルにラベル番号が入っている。
+            # stats = ラベル番号ごとの統計情報（x,y,w,h,面積）が入っている。
+            # center = ラベル番号ごとの重心位置が入っている。
             num_labels, label_image, stats, center = cv2.connectedComponentsWithStats(bin_image)
 
             # 最大のラベルは画面全体を覆う黒なので不要．データを削除
@@ -177,9 +190,24 @@ def main():
             center = np.delete(center, 0, 0)
 
             if num_labels >= 1:
-                # 面積最大のインデックスを取得
-                max_index = np.argmax(stats[:,4])
-                #print(max_index)
+                # 対象にするオブジェクトのインデックスを取得
+                if auto_mode == 4:  # レーザーポインタ追跡の場合
+                    while True:
+                        # ラベルの面積が最大のものを取得
+                        max_index = np.argmax(stats[:,4])
+                        # オブジェクトが1つだけならそれを対象にする
+                        if num_labels == 1:
+                            break
+                        # 一定サイズ以上のものは背景ノイズと判断して除外
+                        if stats[max_index][2] > 30 or stats[max_index][3] > 30:
+                            num_labels = num_labels - 1
+                            stats = np.delete(stats, max_index, 0)
+                            center = np.delete(center, max_index, 0)
+                        else:
+                            break
+                else:
+                    # 面積最大のインデックスを取得
+                    max_index = np.argmax(stats[:,4])
 
                 # 面積最大のラベルのx,y,w,h,面積s,重心位置mx,myを得る
                 x = stats[max_index][0]
@@ -199,95 +227,114 @@ def main():
                 cv2.putText(result_image, "%d"%(s), (x, y+h+30), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
                 cv2.circle(result_image, (mx, my), 10, (255, 0, 255))   # 重心位置に円を描画
 
-                # 自動操縦のときは、ここで飛行方向を決める
-                if auto_mode == 1:   # 水平トレース
-                    speed = default_speed  # 前方への進行速度は一定
 
-                    # 制御式(0.4はゲイン、様子を見て調整すること)
-                    dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
+            # 自動操縦のときは、ここで飛行方向を決める
+            if num_labels >= 1 and auto_mode == 1:   # 水平トレース
+                speed = default_speed  # 前方への進行速度は一定
 
-                    # 旋回方向の不感帯を設定（±20未満ならゼロにする）
-                    d = 0.0 if abs(dx) < 10.0 else dx
+                # 制御式(0.4はゲイン、様子を見て調整すること)
+                dx = 0.4 * (240 - mx)       # 画面横幅480について、画面中心との差分
 
-                    # 旋回方向のソフトウェアリミッタ(±100を超えないように)
-                    d =  100 if d >  100.0 else d
-                    d = -100 if d < -100.0 else d
+                # 旋回方向の不感帯を設定（±20未満ならゼロにする）
+                d = 0.0 if abs(dx) < 10.0 else dx
 
-                    d = -d  # 旋回方向が逆だったので符号を反転
+                # 旋回方向のソフトウェアリミッタ(±100を超えないように)
+                d =  100 if d >  100.0 else d
+                d = -100 if d < -100.0 else d
 
-                    # 引数の意味： left-right velocity, forward-backward, up-down, yaw
-                    tello.send_rc_control( 0, int(speed), 0, int(d) )
+                d = -d  # 旋回方向が逆だったので符号を反転
 
-                elif auto_mode == 2 or auto_mode == 4:    # 垂直トレースtwww
-                    speed = default_speed  # 前方への進行速度は一定
+                # 引数の意味： left-right velocity, forward-backward, up-down, yaw
+                tello.send_rc_control( 0, int(speed), 0, int(d) )
 
-                    # 画面中心から重心の方向dirを求める
-                    dx = (mx - 240)
-                    dz = (180 - my)  # 画像のy座標は下向きなので逆
 
-                    # 光源追跡の場合は、光源に近づくにつれて速度を下げる
-                    if auto_mode == 4:
-                        speed = default_speed * (dx+dz) / 420
+            if num_labels >= 1 and auto_mode == 2:    # 垂直トレース
+                speed = default_speed  # 前方への進行速度は一定
 
-                    # 重心方向への角度を求める。arctan2()の解説は下記
-                    # https://note.nkmk.me/python-numpy-sin-con-tan/
-                    dir = np.degrees(np.arctan2(dz, dx))
-                    dir = dir + 360 if dir < 0    else dir
-                    dir = dir - 360 if 360 <= dir else dir
+                # 画面中心から重心の方向dirを求める
+                dx = (mx - 240)
+                dz = (180 - my)  # 画像のy座標は下向きなので逆
 
-                    # 現在の進行方向directionと、重心方向dirの差分
-                    diff = dir - direction
+                # 重心方向への角度を求める。arctan2()の解説は下記
+                # https://note.nkmk.me/python-numpy-sin-con-tan/
+                dir = np.degrees(np.arctan2(dz, dx))
+                dir = dir + 360 if dir < 0    else dir
+                dir = dir - 360 if 360 <= dir else dir
 
-                    # 差分diffが180度を超える時は反対向きに角度を取る
-                    if diff > 180:
-                        diff = diff - 360
-                    elif diff < -180:
-                        diff = diff + 360
+                # 現在の進行方向directionと、重心方向dirの差分
+                diff = dir - direction
 
-                    # 転換方向の不感帯を設定（±0.1度未満ならゼロにする）
-                    #diff = 0.0 if abs(diff) < 0.05 else diff
+                # 差分diffが180度を超える時は反対向きに角度を取る
+                if diff > 180:
+                    diff = diff - 360
+                elif diff < -180:
+                    diff = diff + 360
 
-                    # 旋回方向のソフトウェアリミッタ
-                    diff =  0.5 if diff >  0.5 else diff
-                    diff = -0.5 if diff < -0.5 else diff
-                    print('direction=%f, diff=%f, dir=%f'%(direction, diff, dir) )
+                # 転換方向の不感帯を設定（±0.1度未満ならゼロにする）
+                #diff = 0.0 if abs(diff) < 0.05 else diff
 
-                    # 方向転換
-                    direction += diff
-                    direction = direction + 360 if direction < 0    else direction
-                    direction = direction - 360 if 360 <= direction else direction
+                # 旋回方向のソフトウェアリミッタ
+                diff =  0.5 if diff >  0.5 else diff
+                diff = -0.5 if diff < -0.5 else diff
+                #print('direction=%f, diff=%f, dir=%f'%(direction, diff, dir) )
 
-                    x = np.cos(np.radians(direction)) * speed
-                    z = np.sin(np.radians(direction)) * speed
-                    print('x=%f, z=%f'%(x, z) )
+                # 方向転換
+                direction += diff
+                direction = direction + 360 if direction < 0    else direction
+                direction = direction - 360 if 360 <= direction else direction
 
-                    # 進行方向を矢印で表示
-                    cv2.arrowedLine(result_image, pt1=(240,180), pt2=(240+int(x)*5,180-int(z)*5),
-                            color=(255, 0, 255), thickness=3, line_type=cv2.LINE_4,
-                            shift=0, tipLength=0.2)
+                x = np.cos(np.radians(direction)) * speed
+                z = np.sin(np.radians(direction)) * speed
+                # print('x=%f, z=%f'%(x, z) )
 
-                    # 推進力の調整。上下方向は強めにする。
-                    x = x * 0.4
-                    z = z * 0.8
+                # 進行方向を矢印で表示
+                cv2.arrowedLine(result_image, pt1=(240,180), pt2=(240+int(x)*5,180-int(z)*5),
+                        color=(255, 0, 255), thickness=3, line_type=cv2.LINE_4,
+                        shift=0, tipLength=0.2)
 
-                    # 引数の意味： left-right, forward-backward, up-down, yaw
-                    tello.send_rc_control( int(x), 0, int(z), 0 )
+                # 推進力の調整。上下方向は強めにする。
+                x = x * 0.4
+                z = z * 0.8
 
-                # 円周運動をさせる
-                elif auto_mode == 3:
-                    # 右を０度の座標系
-                    # 速度speedで、方向direction(右方向0度〜反時計回りに359度)へ移動させる。
-                    # ここでは360ステップで1回転させている。
-                    speed = default_speed * 1.0    # 大きくすると大きな円を描く
-                    direction += 1         # 初期値（右）から反時計回りに回転
-                    direction = direction + 360 if direction < 0    else direction
-                    direction = direction - 360 if 360 <= direction else direction
-                    x = np.cos(np.radians(direction)) * speed
-                    z = np.sin(np.radians(direction)) * speed
-                    z = z*1.5 if 0 < z else z   # 上方向は鈍いので+50%のゲタを履かせる
-                    print("x=",x," z=",z)
-                    # 引数の意味： left-right, forward-backward, up-down, yaw
-                    tello.send_rc_control( int(x), 0, int(z), 0 )
+                # 引数の意味： left-right, forward-backward, up-down, yaw
+                tello.send_rc_control( int(x), 0, int(z), 0 )
+
+
+            # 円周運動をさせる
+            if num_labels >= 1 and auto_mode == 3:
+                # 右を０度の座標系
+                # 速度speedで、方向direction(右方向0度〜反時計回りに359度)へ移動させる。
+                # ここでは360ステップで1回転させている。
+                speed = default_speed * 1.0    # 大きくすると大きな円を描く
+                direction += 1         # 初期値（右）から反時計回りに回転
+                direction = direction + 360 if direction < 0    else direction
+                direction = direction - 360 if 360 <= direction else direction
+                x = np.cos(np.radians(direction)) * speed
+                z = np.sin(np.radians(direction)) * speed
+                z = z*1.5 if 0 < z else z   # 上方向は鈍いので+50%のゲタを履かせる
+                print("x=",x," z=",z)
+                # 引数の意味： left-right, forward-backward, up-down, yaw
+                tello.send_rc_control( int(x), 0, int(z), 0 )
+
+
+            if num_labels >= 1 and auto_mode == 4:    # レーザーポインタ追跡
+                # 画面中心から重心の方向への差分
+                dx = mx - 240
+                dz = 180 - my  # 画像のy座標は下向きなので逆
+                print("dx=", dx," dz=", dz)
+
+                # 進行方向を矢印で表示
+                cv2.arrowedLine(result_image, pt1=(240,180), pt2=(240+int(dx/2),180-int(dz/2)),
+                        color=(255, 0, 255), thickness=3, line_type=cv2.LINE_4,
+                        shift=0, tipLength=0.2)
+
+                # 推進力の調整。上下方向は強めにする。
+                dx = dx * 0.1
+                dz = dz * 0.2
+
+                # 引数の意味： left-right, forward-backward, up-down, yaw
+                tello.send_rc_control( int(dx), 0, int(dz), 0 )
+
 
             # ウィンドウに画像を表示。ウィンドウに表示するイメージを変えれば色々表示できる。
             #if auto_mode == 2:
@@ -351,7 +398,6 @@ def main():
                 direction = 0           # 移動方向の初期値は右
             elif key == ord('4'):       # 光源を追跡する
                 auto_mode = 4
-                direction = 0           # 移動方向の初期値は右
             elif key == ord('0'):       # 追跡モードOFF
                 tello.send_rc_control( 0, 0, 0, 0 )
                 auto_mode = 0
